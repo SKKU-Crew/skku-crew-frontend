@@ -14,12 +14,12 @@ cd ..\skku-crew-backend
 2. 프론트 실행:
 ```powershell
 flutter pub get
-flutter run -d chrome --web-port 3000
+flutter run -d chrome --web-port 5000
 ```
 
 다른 백엔드 주소(ngrok 등)에 붙일 때:
 ```powershell
-flutter run -d chrome --web-port 3000 --dart-define=API_BASE_URL=https://xxxx.ngrok-free.app
+flutter run -d chrome --web-port 5000 --dart-define=API_BASE_URL=https://xxxx.ngrok-free.app
 ```
 
 참고:
