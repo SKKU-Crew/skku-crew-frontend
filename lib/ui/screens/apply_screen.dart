@@ -299,15 +299,9 @@ class _ApplyScreenState extends State<ApplyScreen> {
       await widget.controller.api.submitApplication(widget.postingId, payload);
       widget.controller.bumpDataVersion();
       if (!mounted) return;
-      await showNoticeDialog(
-        context,
-        title: '지원서가 제출되었습니다',
-        message: '지원서가 정상적으로 접수되었습니다. 내 활동에서 진행 상태를 확인할 수 있어요.',
-      );
-      if (mounted) {
-        widget.controller.initialMyActivitiesTab = 0;
-        widget.controller.go('/me/applications');
-      }
+      AppToast.show(context, '지원서가 제출되었습니다.');
+      widget.controller.initialMyActivitiesTab = 0;
+      widget.controller.go('/me/applications');
     } on ApiException catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
@@ -325,7 +319,7 @@ class _ApplyScreenState extends State<ApplyScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text(
-          '내 지원서 미리보기',
+          '모집자에게 보이는 화면',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         content: SizedBox(
@@ -543,6 +537,7 @@ class _ApplyScreenState extends State<ApplyScreen> {
                   value: _shareBio,
                   onChanged: (v) => setState(() => _shareBio = v ?? false),
                   contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
                   title: const Text('한 줄 소개', style: TextStyle(fontSize: 14)),
                 ),
               if (f.majorsSecondary.available)
@@ -551,6 +546,7 @@ class _ApplyScreenState extends State<ApplyScreen> {
                   onChanged: (v) =>
                       setState(() => _shareMajorsSecondary = v ?? false),
                   contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
                   title:
                       const Text('복수·부전공', style: TextStyle(fontSize: 14)),
                 ),
@@ -559,17 +555,18 @@ class _ApplyScreenState extends State<ApplyScreen> {
                   value: _shareSkills,
                   onChanged: (v) => setState(() => _shareSkills = v ?? false),
                   contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
                   title: const Text('기술 스택', style: TextStyle(fontSize: 14)),
                 ),
               if (f.experiences.isNotEmpty) ...[
                 const Divider(),
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Text(
-                      '경험 및 활동 내역',
-                      style: TextStyle(
+                      '경험 및 활동 내역 (${_selectedExpIds.length}/${f.experiences.length})',
+                      style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textMuted),
@@ -584,19 +581,20 @@ class _ApplyScreenState extends State<ApplyScreen> {
                         : _selectedExpIds.remove(exp.id)),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
                     title:
                         Text(exp.title, style: const TextStyle(fontSize: 13)),
                   ),
               ],
               if (f.portfolioLinks.isNotEmpty || f.portfolioFiles.isNotEmpty) ...[
                 const Divider(),
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Text(
-                      '포트폴리오',
-                      style: TextStyle(
+                      '포트폴리오 (${_selectedLinkIds.length + _selectedFileIds.length}/${f.portfolioLinks.length + f.portfolioFiles.length})',
+                      style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textMuted),
@@ -611,6 +609,7 @@ class _ApplyScreenState extends State<ApplyScreen> {
                         : _selectedLinkIds.remove(l.id)),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
                     title: Text(l.title, style: const TextStyle(fontSize: 13)),
                   ),
                 for (final pf in f.portfolioFiles)
@@ -621,6 +620,7 @@ class _ApplyScreenState extends State<ApplyScreen> {
                         : _selectedFileIds.remove(pf.id)),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
                     title:
                         Text(pf.title, style: const TextStyle(fontSize: 13)),
                   ),
@@ -630,7 +630,7 @@ class _ApplyScreenState extends State<ApplyScreen> {
         ),
         const SizedBox(height: 18),
         const Text(
-          '연락처 전달 동의',
+          '연락처 전달 동의 · 합격 시 공개',
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
@@ -646,6 +646,7 @@ class _ApplyScreenState extends State<ApplyScreen> {
                       : (v) => setState(
                           () => _contactConsent[c.type] = v ?? false),
                   contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
                   title: Row(
                     children: [
                       Text(c.type.label, style: const TextStyle(fontSize: 14)),
@@ -693,6 +694,7 @@ class _ApplyScreenState extends State<ApplyScreen> {
                               () => _contactSaveToProfile[c.type] = v ?? true),
                           dense: true,
                           contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
                           title: const Text(
                             '내 프로필에도 이 연락처 저장하기',
                             style: TextStyle(fontSize: 12),
@@ -993,9 +995,11 @@ class _ApplyScreenState extends State<ApplyScreen> {
                       }
                     },
               child: Text(
-                _step < 2
-                    ? '다음'
-                    : (_submitting ? '제출 중...' : '지원서 제출하기'),
+                _step == 0
+                    ? '다음 (추가 질문)'
+                    : (_step == 1
+                        ? '다음 (확인·제출)'
+                        : (_submitting ? '제출 중...' : '제출')),
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
@@ -1014,7 +1018,7 @@ class _StepHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labels = ['1. 프로필 선택', '2. 질문 답변', '3. 최종 확인'];
+    final labels = ['① 공유 항목', '② 추가 질문', '③ 확인·제출'];
     return Container(
       width: double.infinity,
       color: AppColors.surface,

@@ -78,7 +78,7 @@ enum AcademicStatus {
   DEFERRED('졸업유예'),
   MASTER('대학원 석사'),
   PHD('대학원 박사'),
-  OTHER('교직원·연구원');
+  OTHER('기타(교직원·연구원)');
 
   const AcademicStatus(this.label);
   final String label;
@@ -331,7 +331,7 @@ class DomainConstants {
     '컬처앤테크놀로지융합전공',
     '인공지능융합전공',
     '미디어커뮤니케이션학과',
-    '기타 소속',
+    '기타(학과 외 소속)',
   ];
 
   static const List<String> orgTypes = [

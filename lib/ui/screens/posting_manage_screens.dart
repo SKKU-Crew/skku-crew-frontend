@@ -31,6 +31,8 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
   final List<Field> _fields = [Field.DATA];
   ActivityMode _mode = ActivityMode.HYBRID;
   DateTime _deadline = DateTime.now().add(const Duration(days: 7));
+  DateTime? _activityStart;
+  DateTime? _activityEnd;
   final List<String> _skills = ['Python'];
   final List<_EditableQuestion> _questions = [];
   final Set<ContactType> _requestedContacts = {};
@@ -50,6 +52,11 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
       _capacityCtrl.text = dup.capacity.toString();
       _mode = dup.activityMode;
       _placeCtrl.text = dup.place ?? '';
+      _activityStart = dup.activityStart != null
+          ? DateTime.tryParse(dup.activityStart!)
+          : null;
+      _activityEnd =
+          dup.activityEnd != null ? DateTime.tryParse(dup.activityEnd!) : null;
       _skills
         ..clear()
         ..addAll(dup.skills);
@@ -93,6 +100,39 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
     if (date == null || !mounted) return;
     setState(() {
       _deadline = DateTime(date.year, date.month, date.day, 23, 59);
+    });
+  }
+
+  String _formatIsoDate(DateTime dt) {
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  Future<void> _pickActivityDate({required bool isStart}) async {
+    final now = DateTime.now();
+    final current = isStart ? _activityStart : _activityEnd;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: current ?? _activityStart ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
+    );
+    if (date == null || !mounted) return;
+    if (!isStart && _activityStart != null && date.isBefore(_activityStart!)) {
+      AppToast.show(context, '활동 종료일은 시작일 이후여야 합니다.', isError: true);
+      return;
+    }
+    setState(() {
+      if (isStart) {
+        _activityStart = date;
+        if (_activityEnd != null && _activityEnd!.isBefore(date)) {
+          _activityEnd = date;
+        }
+      } else {
+        _activityEnd = date;
+      }
     });
   }
 
@@ -155,6 +195,10 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
       fields: _fields,
       capacity: int.tryParse(_capacityCtrl.text.trim()) ?? 1,
       deadline: AppFormatters.toIsoKst(_deadline),
+      activityStart:
+          _activityStart != null ? _formatIsoDate(_activityStart!) : null,
+      activityEnd:
+          _activityEnd != null ? _formatIsoDate(_activityEnd!) : null,
       activityMode: _mode,
       place: _placeCtrl.text.trim().isEmpty ? null : _placeCtrl.text.trim(),
       skills: _skills,
@@ -300,9 +344,15 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
                                 }
                               },
                         child: Text(
-                          _step < 3
-                              ? '다음'
-                              : (_submitting ? '게시 중...' : '공고 게시하기'),
+                          _step == 0
+                              ? '다음 (상세 내용)'
+                              : (_step == 1
+                                  ? '다음 (추가 질문)'
+                                  : (_step == 2
+                                      ? '다음 (미리보기)'
+                                      : (_submitting
+                                          ? '게시 중...'
+                                          : '공고 게시하기'))),
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
@@ -410,6 +460,70 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => _pickActivityDate(isStart: true),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: '활동 시작일 (선택)',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: _activityStart != null
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 16),
+                              onPressed: () =>
+                                  setState(() => _activityStart = null),
+                            )
+                          : const Icon(Icons.date_range, size: 18),
+                    ),
+                    child: Text(
+                      _activityStart == null
+                          ? '미정'
+                          : AppFormatters.formatDateOnly(_activityStart),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _activityStart == null
+                            ? AppColors.textMuted
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _pickActivityDate(isStart: false),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: '활동 종료일 (선택)',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: _activityEnd != null
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 16),
+                              onPressed: () =>
+                                  setState(() => _activityEnd = null),
+                            )
+                          : const Icon(Icons.date_range, size: 18),
+                    ),
+                    child: Text(
+                      _activityEnd == null
+                          ? '미정'
+                          : AppFormatters.formatDateOnly(_activityEnd),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _activityEnd == null
+                            ? AppColors.textMuted
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -504,9 +618,9 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
       children: [
         Row(
           children: [
-            const Text(
-              '지원자 추가 질문',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            Text(
+              '지원자 추가 질문 (${_questions.length} / 10개)',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
             const Spacer(),
             PopupMenuButton<QuestionTemplateItem>(
@@ -535,6 +649,26 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
                       Text('질문 ${i + 1}',
                           style: const TextStyle(fontWeight: FontWeight.w700)),
                       const Spacer(),
+                      IconButton(
+                        tooltip: '위로 이동',
+                        icon: const Icon(Icons.arrow_upward, size: 18),
+                        onPressed: i > 0
+                            ? () => setState(() {
+                                  final moved = _questions.removeAt(i);
+                                  _questions.insert(i - 1, moved);
+                                })
+                            : null,
+                      ),
+                      IconButton(
+                        tooltip: '아래로 이동',
+                        icon: const Icon(Icons.arrow_downward, size: 18),
+                        onPressed: i < _questions.length - 1
+                            ? () => setState(() {
+                                  final moved = _questions.removeAt(i);
+                                  _questions.insert(i + 1, moved);
+                                })
+                            : null,
+                      ),
                       DropdownButton<QuestionType>(
                         value: _questions[i].type,
                         isDense: true,
@@ -790,18 +924,58 @@ class _ApplicantListScreenState extends State<ApplicantListScreen> {
   }
 
   Future<void> _closeEarly() async {
+    final validCount = _allApplicants.where((a) => !a.withdrawn).length;
     final ok = await showConfirmDialog(
       context,
-      title: '조기 마감',
-      message: '공고를 지금 마감하고 결과 발표 단계로 이동하시겠습니까?',
-      confirmLabel: '조기 마감',
+      title: validCount == 0 ? '공고 조기 마감' : '지원 접수만 마감',
+      message: validCount == 0
+          ? '현재 유효 지원자가 없습니다. 모집을 지금 마감하시겠습니까?'
+          : '새 지원서 접수를 중단하고 심사 단계(모집마감)로 전환합니다. 합격·불합격 결과 고지는 모든 지원자 심사 후 진행됩니다.',
+      confirmLabel: validCount == 0 ? '공고 마감' : '지원 접수 마감',
       isDanger: true,
     );
     if (!ok) return;
     try {
       await widget.controller.api.closePosting(widget.postingId);
       widget.controller.bumpDataVersion();
-      if (mounted) AppToast.show(context, '공고가 마감되었습니다.');
+      if (mounted) AppToast.show(context, '지원 접수가 마감되었습니다.');
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) AppToast.show(context, e.message, isError: true);
+    }
+  }
+
+  Future<void> _closeAndAnnounce() async {
+    final ok = await showConfirmDialog(
+      context,
+      title: '모집 마감 및 결과 발표',
+      message: '모든 지원자 심사가 완료되었습니다. 모집을 마감하고 바로 결과 발표(합·불 안내 메시지 작성) 화면으로 이동할까요?',
+      confirmLabel: '마감 후 발표 진행',
+    );
+    if (!ok) return;
+    try {
+      await widget.controller.api.closePosting(widget.postingId);
+      widget.controller.bumpDataVersion();
+      await _load();
+      if (mounted) {
+        widget.controller.push('/postings/${widget.postingId}/announce');
+      }
+    } on ApiException catch (e) {
+      if (mounted) AppToast.show(context, e.message, isError: true);
+    }
+  }
+
+  Future<void> _quickDecide(ApplicantItem item, Decision decision) async {
+    final nextDecision = item.decision == decision ? Decision.PENDING : decision;
+    try {
+      await widget.controller.api.decideApplication(
+        item.applicationId,
+        decision: nextDecision,
+      );
+      widget.controller.bumpDataVersion();
+      if (mounted) {
+        AppToast.show(context, '${item.name} · ${nextDecision.label}');
+      }
       await _load();
     } on ApiException catch (e) {
       if (mounted) AppToast.show(context, e.message, isError: true);
@@ -908,8 +1082,39 @@ class _ApplicantListScreenState extends State<ApplicantListScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  if (_posting?.status == PostingStatus.OPEN &&
+                                      valid.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.danger,
+                                        side: const BorderSide(
+                                            color: AppColors.dangerBorder),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 6),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      onPressed: _closeEarly,
+                                      child: const Text(
+                                        '지원 접수만 마감',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
+                              if (_posting?.deadline != null) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  '마감 일시: ${AppFormatters.formatKstDateTime(_posting!.deadline)}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 12),
                               Row(
                                 children: [
@@ -1077,6 +1282,42 @@ class _ApplicantListScreenState extends State<ApplicantListScreen> {
                                                   AppColors.surfaceMuted,
                                               textColor: AppColors.textLight,
                                             )
+                                          else if (_posting?.status !=
+                                              PostingStatus.ANNOUNCED)
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                ChoiceChip(
+                                                  label: const Text('합격',
+                                                      style: TextStyle(
+                                                          fontSize: 11)),
+                                                  selected: a.decision ==
+                                                      Decision.ACCEPTED,
+                                                  selectedColor:
+                                                      AppColors.primaryTint,
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                  onSelected: (_) =>
+                                                      _quickDecide(
+                                                          a, Decision.ACCEPTED),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                ChoiceChip(
+                                                  label: const Text('불합격',
+                                                      style: TextStyle(
+                                                          fontSize: 11)),
+                                                  selected: a.decision ==
+                                                      Decision.REJECTED,
+                                                  selectedColor:
+                                                      AppColors.dangerBg,
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                  onSelected: (_) =>
+                                                      _quickDecide(
+                                                          a, Decision.REJECTED),
+                                                ),
+                                              ],
+                                            )
                                           else if (a.decision != null)
                                             StatusBadge.decision(a.decision!),
                                         ],
@@ -1085,7 +1326,7 @@ class _ApplicantListScreenState extends State<ApplicantListScreen> {
                                   },
                                 ),
                         ),
-                        _buildBottomBar(pendingCount),
+                        _buildBottomBar(pendingCount, valid.length),
                       ],
                     ),
                   ),
@@ -1095,7 +1336,7 @@ class _ApplicantListScreenState extends State<ApplicantListScreen> {
     );
   }
 
-  Widget _buildBottomBar(int pendingCount) {
+  Widget _buildBottomBar(int pendingCount, int validCount) {
     final status = _posting?.status;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
@@ -1106,47 +1347,7 @@ class _ApplicantListScreenState extends State<ApplicantListScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (status == PostingStatus.OPEN)
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                      side: const BorderSide(color: AppColors.dangerBorder),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    onPressed: _closeEarly,
-                    child: const Text('조기 마감 후 발표 진행'),
-                  ),
-                ),
-              ],
-            )
-          else if (status == PostingStatus.CLOSED) ...[
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: pendingCount > 0
-                    ? null
-                    : () => widget.controller
-                        .push('/postings/${widget.postingId}/announce'),
-                child: const Text('결과 발표'),
-              ),
-            ),
-            if (pendingCount > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  '아직 심사하지 않은 지원자가 $pendingCount명 있습니다. 모두 결정한 뒤 발표할 수 있어요.',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.accentOrange),
-                ),
-              ),
-          ] else if (status == PostingStatus.ANNOUNCED)
+          if (status == PostingStatus.ANNOUNCED) ...[
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -1157,6 +1358,77 @@ class _ApplicantListScreenState extends State<ApplicantListScreen> {
                 onPressed: _showAcceptedContactsModal,
                 icon: const Icon(Icons.contact_phone_outlined, size: 18),
                 label: const Text('합격자 연락처 보기'),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              '결과 발표(합·불 고지)가 완료된 공고입니다. 합격자와 상호 연락처가 공개되었습니다.',
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+          ] else if (validCount == 0) ...[
+            if (status == PostingStatus.OPEN)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: const BorderSide(color: AppColors.dangerBorder),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: _closeEarly,
+                  child: const Text('공고 조기 마감'),
+                ),
+              )
+            else
+              const Text(
+                '유효 지원자 없이 마감된 공고입니다.',
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+              ),
+          ] else if (pendingCount > 0) ...[
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: null,
+                child: Text('결과 발표하기 (미정 $pendingCount명)'),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              status == PostingStatus.OPEN
+                  ? '미정 지원자가 $pendingCount명 있습니다. 모든 지원자의 합·불을 결정하면 마감과 함께 결과를 발표할 수 있습니다.'
+                  : '지원 접수가 마감되었습니다. 미정 지원자 $pendingCount명의 합·불을 모두 결정하면 결과를 발표할 수 있습니다.',
+              style:
+                  const TextStyle(fontSize: 12, color: AppColors.accentOrange),
+              textAlign: TextAlign.center,
+            ),
+          ] else if (status == PostingStatus.OPEN)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: _closeAndAnnounce,
+                icon: const Icon(Icons.campaign_outlined, size: 18),
+                label: const Text('마감 및 결과 발표하기'),
+              ),
+            )
+          else if (status == PostingStatus.CLOSED)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: () => widget.controller
+                    .push('/postings/${widget.postingId}/announce'),
+                icon: const Icon(Icons.campaign_outlined, size: 18),
+                label: const Text('결과 발표하기'),
               ),
             ),
         ],
@@ -1286,15 +1558,20 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
     }
   }
 
+  bool get _isAnnounced =>
+      _detail?.posting.status == PostingStatus.ANNOUNCED;
+
   @override
   Widget build(BuildContext context) {
     final idx =
         _siblings.indexWhere((element) => element.applicationId == _currentAppId);
     final total = _siblings.length;
+    final hasNext = idx >= 0 && idx < total - 1;
+    final isLast = idx >= 0 && idx == total - 1;
 
     return AdaptiveShell(
       controller: widget.controller,
-      title: '지원서 검토',
+      title: total > 0 && idx >= 0 ? '지원서 검토 (${idx + 1}/$total)' : '지원서 검토',
       leadingBack: true,
       showBottomNav: false,
       body: _loading || _detail == null
@@ -1395,22 +1672,33 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Row(
+                                  Row(
                                     children: [
-                                      Icon(Icons.lock_outline,
+                                      const Icon(Icons.lock_outline,
                                           size: 15, color: AppColors.textMuted),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        '심사 메모',
+                                      const SizedBox(width: 6),
+                                      const Text(
+                                        '비공개 메모',
                                         style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w700),
+                                      ),
+                                      const Spacer(),
+                                      TextButton.icon(
+                                        onPressed: (_saving || _isAnnounced)
+                                            ? null
+                                            : () => _saveDecision(_decision),
+                                        icon: const Icon(Icons.save_outlined,
+                                            size: 16),
+                                        label: const Text('메모 저장',
+                                            style: TextStyle(fontSize: 12)),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
                                   TextField(
                                     controller: _memoCtrl,
+                                    readOnly: _isAnnounced,
                                     maxLines: 2,
                                     maxLength: 500,
                                     decoration: const InputDecoration(
@@ -1419,11 +1707,24 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  const Text(
-                                    '선발 여부',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textMuted),
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        '선발 결정',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textMuted),
+                                      ),
+                                      if (_isAnnounced) ...[
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          '(결과 발표 완료 · 수정 불가)',
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.accentOrange),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                   const SizedBox(height: 8),
                                   Row(
@@ -1453,17 +1754,19 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
                                                                   : AppColors
                                                                       .warning,
                                                     ),
-                                                    onPressed: _saving
-                                                        ? null
-                                                        : () =>
-                                                            _saveDecision(d),
+                                                    onPressed:
+                                                        (_saving || _isAnnounced)
+                                                            ? null
+                                                            : () =>
+                                                                _saveDecision(d),
                                                     child: Text(d.label),
                                                   )
                                                 : OutlinedButton(
-                                                    onPressed: _saving
-                                                        ? null
-                                                        : () =>
-                                                            _saveDecision(d),
+                                                    onPressed:
+                                                        (_saving || _isAnnounced)
+                                                            ? null
+                                                            : () =>
+                                                                _saveDecision(d),
                                                     child: Text(d.label),
                                                   ),
                                           ),
@@ -1501,18 +1804,24 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: OutlinedButton(
-                              onPressed: idx >= 0 && idx < total - 1
-                                  ? () {
-                                      setState(() {
-                                        _currentAppId =
-                                            _siblings[idx + 1].applicationId;
-                                      });
-                                      _load();
-                                    }
-                                  : null,
-                              child: const Text('다음 >'),
-                            ),
+                            child: isLast
+                                ? FilledButton.tonal(
+                                    onPressed: widget.controller.pop,
+                                    child: const Text('목록으로 완료'),
+                                  )
+                                : OutlinedButton(
+                                    onPressed: hasNext
+                                        ? () {
+                                            setState(() {
+                                              _currentAppId =
+                                                  _siblings[idx + 1]
+                                                      .applicationId;
+                                            });
+                                            _load();
+                                          }
+                                        : null,
+                                    child: const Text('다음 >'),
+                                  ),
                           ),
                         ],
                       ),
@@ -1541,6 +1850,11 @@ class AnnounceResultScreen extends StatefulWidget {
 }
 
 class _AnnounceResultScreenState extends State<AnnounceResultScreen> {
+  static const String _defaultAcceptMsg =
+      '합격을 축하합니다! 오리엔테이션 및 향후 일정은 공개된 연락처로 안내드리겠습니다.';
+  static const String _defaultRejectMsg =
+      '지원해 주셔서 감사합니다. 아쉽게도 이번 모집에서는 함께하지 못하게 되었습니다.';
+
   PostingDetail? _posting;
   int _accepted = 0;
   int _rejected = 0;
@@ -1548,14 +1862,14 @@ class _AnnounceResultScreenState extends State<AnnounceResultScreen> {
   bool _loading = true;
   bool _submitting = false;
 
-  final _acceptMsgCtrl = TextEditingController(
-    text: '합격을 축하합니다! 오리엔테이션 및 향후 일정은 공개된 연락처로 안내드리겠습니다.',
-  );
-  final _rejectMsgCtrl = TextEditingController();
+  late final TextEditingController _acceptMsgCtrl;
+  late final TextEditingController _rejectMsgCtrl;
 
   @override
   void initState() {
     super.initState();
+    _acceptMsgCtrl = TextEditingController(text: _defaultAcceptMsg);
+    _rejectMsgCtrl = TextEditingController(text: _defaultRejectMsg);
     _load();
   }
 
@@ -1719,6 +2033,16 @@ class _AnnounceResultScreenState extends State<AnnounceResultScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () => setState(() {
+                                        _acceptMsgCtrl.text = _defaultAcceptMsg;
+                                      }),
+                                      child: const Text('기본 문구 복원',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ),
                                   TextField(
                                     controller: _acceptMsgCtrl,
                                     maxLines: 4,
@@ -1729,14 +2053,25 @@ class _AnnounceResultScreenState extends State<AnnounceResultScreen> {
                                       border: OutlineInputBorder(),
                                     ),
                                   ),
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () => setState(() {
+                                        _rejectMsgCtrl.text = _defaultRejectMsg;
+                                      }),
+                                      child: const Text('기본 문구 복원',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ),
                                   TextField(
                                     controller: _rejectMsgCtrl,
                                     maxLines: 3,
                                     maxLength: 500,
                                     decoration: const InputDecoration(
-                                      labelText: '불합격자 안내 메시지',
-                                      hintText: '비워두면 기본 안내 문구가 전달됩니다.',
+                                      labelText: '불합격자 안내 메시지 (선택)',
+                                      helperText:
+                                          '기본 안내 문구가 입력되어 있으며 자유롭게 수정할 수 있습니다.',
                                       border: OutlineInputBorder(),
                                     ),
                                   ),

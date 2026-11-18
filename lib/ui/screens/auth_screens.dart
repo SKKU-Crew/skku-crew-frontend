@@ -328,6 +328,48 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(fontSize: 13),
                         ),
                       ),
+                      if (_tabIndex == 0) ...[
+                        const Divider(height: 20),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 2,
+                          children: [
+                            const Text(
+                              '동아리·학회·연구실이신가요?',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  widget.controller.push('/org/signup'),
+                              style: TextButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text('단체회원 가입',
+                                  style: TextStyle(fontSize: 12)),
+                            ),
+                            const Text('·',
+                                style: TextStyle(color: AppColors.textLight)),
+                            TextButton(
+                              onPressed: () => _showPasswordResetDialog(context),
+                              style: TextButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text('비밀번호 재설정',
+                                  style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -512,8 +554,59 @@ class _SignupIndividualScreenState extends State<SignupIndividualScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: SectionCard(
-              child: _completed
-                  ? Column(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              '1. 이메일 인증 완료',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            LinearProgressIndicator(
+                              value: 1,
+                              color: AppColors.primary,
+                              backgroundColor: AppColors.surfaceMuted,
+                              minHeight: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              _completed ? '2. 가입 완료' : '2. 프로필 · 약관 입력',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const LinearProgressIndicator(
+                              value: 1,
+                              color: AppColors.primary,
+                              backgroundColor: AppColors.surfaceMuted,
+                              minHeight: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  if (_completed)
+                    Column(
                       children: [
                         const Icon(Icons.celebration,
                             size: 48, color: AppColors.primary),
@@ -561,7 +654,8 @@ class _SignupIndividualScreenState extends State<SignupIndividualScreen> {
                         ),
                       ],
                     )
-                  : Column(
+                  else
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Container(
@@ -632,16 +726,34 @@ class _SignupIndividualScreenState extends State<SignupIndividualScreen> {
                           value: _agreeTerms,
                           onChanged: (v) =>
                               setState(() => _agreeTerms = v ?? false),
-                          title: const Text('[필수] 서비스 이용약관',
+                          title: const Text('[필수] 서비스 이용약관 동의',
                               style: TextStyle(fontSize: 13)),
+                          secondary: TextButton(
+                            onPressed: () => showNoticeDialog(
+                              context,
+                              title: '서비스 이용약관',
+                              message:
+                                  'SKKU Crew는 성균관대학교 구성원의 교내 모집·팀빌딩 및 대외활동 정보 탐색을 위한 플랫폼입니다. 허위 공고 작성, 과도한 개인정보 요구, 무단 영리 홍보 행위는 제한됩니다.',
+                            ),
+                            child: const Text('보기'),
+                          ),
                           controlAffinity: ListTileControlAffinity.leading,
                         ),
                         CheckboxListTile(
                           value: _agreePrivacy,
                           onChanged: (v) =>
                               setState(() => _agreePrivacy = v ?? false),
-                          title: const Text('[필수] 개인정보 수집·이용 동의',
+                          title: const Text('[필수] 개인정보 수집 및 이용 동의',
                               style: TextStyle(fontSize: 13)),
+                          secondary: TextButton(
+                            onPressed: () => showNoticeDialog(
+                              context,
+                              title: '개인정보 수집 및 이용 안내',
+                              message:
+                                  '수집 항목: 성균관대 Google 이메일, 이름(필수). 지원 시 지원자가 직접 선택한 프로필·연락처 항목만 모집자에게 전달되며, 합격 시에만 선택 연락처가 공개됩니다.',
+                            ),
+                            child: const Text('보기'),
+                          ),
                           controlAffinity: ListTileControlAffinity.leading,
                         ),
                         CheckboxListTile(
@@ -670,6 +782,8 @@ class _SignupIndividualScreenState extends State<SignupIndividualScreen> {
                         ),
                       ],
                     ),
+                ],
+              ),
             ),
           ),
         ),
@@ -694,9 +808,11 @@ class _SignupOrgScreenState extends State<SignupOrgScreen> {
   final _emailCtrl = TextEditingController();
   final _orgNameCtrl = TextEditingController();
   final _repNameCtrl = TextEditingController();
-  final _urlCtrl = TextEditingController();
+  final List<TextEditingController> _urlCtrls = [TextEditingController()];
+  final List<String> _proofImages = [];
   String _orgType = '학회';
   bool _agreeRequired = false;
+  bool _triedSubmit = false;
   bool _submitted = false;
 
   @override
@@ -706,16 +822,22 @@ class _SignupOrgScreenState extends State<SignupOrgScreen> {
     _emailCtrl.dispose();
     _orgNameCtrl.dispose();
     _repNameCtrl.dispose();
-    _urlCtrl.dispose();
+    for (final c in _urlCtrls) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   void _submit() {
+    setState(() => _triedSubmit = true);
+    final urlErrors = [
+      for (final c in _urlCtrls) AppValidators.validateUrl(c.text, required: true),
+    ];
     final errors = [
       AppValidators.validateOrgLoginId(_idCtrl.text),
       AppValidators.validateOrgPassword(_pwCtrl.text),
       AppValidators.validateEmail(_emailCtrl.text, required: true),
-      AppValidators.validateUrl(_urlCtrl.text, required: true),
+      ...urlErrors,
     ].whereType<String>().toList();
 
     if (_orgNameCtrl.text.trim().length < 2 ||
@@ -739,7 +861,11 @@ class _SignupOrgScreenState extends State<SignupOrgScreen> {
         contactEmail: _emailCtrl.text.trim(),
         submittedAt: DateTime.now(),
         status: '인증 대기',
-        urls: [_urlCtrl.text.trim()],
+        urls: [
+          for (final c in _urlCtrls)
+            if (c.text.trim().isNotEmpty) c.text.trim(),
+          ..._proofImages.map((img) => '첨부파일: $img'),
+        ],
         isNameChange: false,
       ),
     );
@@ -808,29 +934,42 @@ class _SignupOrgScreenState extends State<SignupOrgScreen> {
                         const SizedBox(height: 14),
                         TextField(
                           controller: _idCtrl,
-                          decoration: const InputDecoration(
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
                             labelText: '아이디 *',
                             helperText: '영문 소문자, 숫자 4~20자',
-                            border: OutlineInputBorder(),
+                            errorText: _triedSubmit
+                                ? AppValidators.validateOrgLoginId(_idCtrl.text)
+                                : null,
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _pwCtrl,
                           obscureText: true,
-                          decoration: const InputDecoration(
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
                             labelText: '비밀번호 *',
                             helperText: '영문, 숫자, 특수문자 조합 8~20자',
-                            border: OutlineInputBorder(),
+                            errorText: _triedSubmit
+                                ? AppValidators.validateOrgPassword(_pwCtrl.text)
+                                : null,
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _emailCtrl,
-                          decoration: const InputDecoration(
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
                             labelText: '대표 연락 이메일 *',
                             hintText: 'dlab.skku@gmail.com',
-                            border: OutlineInputBorder(),
+                            errorText: _triedSubmit
+                                ? AppValidators.validateEmail(_emailCtrl.text,
+                                    required: true)
+                                : null,
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -839,9 +978,14 @@ class _SignupOrgScreenState extends State<SignupOrgScreen> {
                             Expanded(
                               child: TextField(
                                 controller: _orgNameCtrl,
-                                decoration: const InputDecoration(
+                                onChanged: (_) => setState(() {}),
+                                decoration: InputDecoration(
                                   labelText: '단체명 *',
-                                  border: OutlineInputBorder(),
+                                  errorText: _triedSubmit &&
+                                          _orgNameCtrl.text.trim().length < 2
+                                      ? '2자 이상 입력해 주세요.'
+                                      : null,
+                                  border: const OutlineInputBorder(),
                                 ),
                               ),
                             ),
@@ -849,9 +993,14 @@ class _SignupOrgScreenState extends State<SignupOrgScreen> {
                             Expanded(
                               child: TextField(
                                 controller: _repNameCtrl,
-                                decoration: const InputDecoration(
+                                onChanged: (_) => setState(() {}),
+                                decoration: InputDecoration(
                                   labelText: '대표자 이름 *',
-                                  border: OutlineInputBorder(),
+                                  errorText: _triedSubmit &&
+                                          _repNameCtrl.text.trim().length < 2
+                                      ? '2자 이상 입력해 주세요.'
+                                      : null,
+                                  border: const OutlineInputBorder(),
                                 ),
                               ),
                             ),
@@ -877,13 +1026,80 @@ class _SignupOrgScreenState extends State<SignupOrgScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        TextField(
-                          controller: _urlCtrl,
-                          decoration: const InputDecoration(
-                            labelText: '공식 SNS 또는 웹사이트 주소 *',
-                            hintText: 'https://instagram.com/dlab_skku',
-                            border: OutlineInputBorder(),
+                        for (var i = 0; i < _urlCtrls.length; i++) ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _urlCtrls[i],
+                                  onChanged: (_) => setState(() {}),
+                                  decoration: InputDecoration(
+                                    labelText: i == 0
+                                        ? '공식 SNS 또는 웹사이트 주소 *'
+                                        : '추가 증빙 URL ${i + 1}',
+                                    hintText: 'https://instagram.com/dlab_skku',
+                                    errorText: _triedSubmit
+                                        ? AppValidators.validateUrl(
+                                            _urlCtrls[i].text,
+                                            required: true)
+                                        : null,
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                              if (_urlCtrls.length > 1)
+                                IconButton(
+                                  tooltip: 'URL 삭제',
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () {
+                                    setState(() {
+                                      final removed = _urlCtrls.removeAt(i);
+                                      removed.dispose();
+                                    });
+                                  },
+                                ),
+                            ],
                           ),
+                          const SizedBox(height: 8),
+                        ],
+                        if (_urlCtrls.length < 3)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: () => setState(
+                                () => _urlCtrls.add(TextEditingController()),
+                              ),
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('증빙 링크 추가 (최대 3개)'),
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _proofImages.length >= 3
+                                  ? null
+                                  : () => setState(() {
+                                        _proofImages.add(
+                                          'org_verification_${_proofImages.length + 1}.png',
+                                        );
+                                      }),
+                              icon: const Icon(Icons.image_outlined, size: 18),
+                              label: Text(
+                                  '증빙 이미지 첨부 (선택, ${_proofImages.length}/3)'),
+                            ),
+                            for (var i = 0; i < _proofImages.length; i++)
+                              Chip(
+                                label: Text(_proofImages[i],
+                                    style: const TextStyle(fontSize: 12)),
+                                onDeleted: () =>
+                                    setState(() => _proofImages.removeAt(i)),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 10),
                         CheckboxListTile(

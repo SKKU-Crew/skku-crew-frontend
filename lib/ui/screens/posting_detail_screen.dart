@@ -127,27 +127,6 @@ class _PostingDetailContentState extends State<PostingDetailContent> {
     }
   }
 
-  Future<void> _closeEarly() async {
-    final d = _detail;
-    if (d == null) return;
-    final ok = await showConfirmDialog(
-      context,
-      title: '공고 조기 마감',
-      message: '모집을 지금 마감하시겠습니까? 마감 이후에는 새 지원을 받을 수 없으며, 지원자 검토 후 결과를 발표할 수 있습니다.',
-      confirmLabel: '조기 마감',
-      isDanger: true,
-    );
-    if (!ok) return;
-    try {
-      await widget.controller.api.closePosting(d.postingId);
-      widget.controller.bumpDataVersion();
-      if (mounted) AppToast.show(context, '공고가 마감되었습니다.');
-      await _load();
-    } on ApiException catch (e) {
-      if (mounted) AppToast.show(context, e.message, isError: true);
-    }
-  }
-
   Future<void> _showReportDialog() async {
     String selectedReason = '허위·사기 의심';
     final detailCtrl = TextEditingController();
@@ -265,27 +244,18 @@ class _PostingDetailContentState extends State<PostingDetailContent> {
                         PopupMenuButton<String>(
                           onSelected: (v) {
                             if (v == 'report') _showReportDialog();
-                            if (v == 'close') _closeEarly();
                             if (v == 'manage') {
                               widget.controller
                                   .push('/postings/${d.postingId}/applicants');
                             }
                           },
                           itemBuilder: (ctx) => [
-                            if (d.viewerAction == ViewerAction.OWNER) ...[
+                            if (d.viewerAction == ViewerAction.OWNER)
                               const PopupMenuItem(
                                 value: 'manage',
-                                child: Text('지원자 관리'),
-                              ),
-                              if (d.status == PostingStatus.OPEN)
-                                const PopupMenuItem(
-                                  value: 'close',
-                                  child: Text(
-                                    '조기 마감',
-                                    style: TextStyle(color: AppColors.danger),
-                                  ),
-                                ),
-                            ] else
+                                child: Text('내 공고 관리'),
+                              )
+                            else
                               const PopupMenuItem(
                                 value: 'report',
                                 child: Text('공고 신고'),
@@ -354,7 +324,7 @@ class _PostingDetailContentState extends State<PostingDetailContent> {
                                 Text(
                                   d.recruiter.type == MemberType.ORGANIZATION
                                       ? '${d.recruiter.orgType ?? "단체"} · 조직 페이지 보기'
-                                      : (d.recruiter.department ?? '개인 모집자'),
+                                      : '${d.recruiter.department ?? "소속 미기재"} · 개인 모집자',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.textMuted,
@@ -507,7 +477,7 @@ class _PostingDetailContentState extends State<PostingDetailContent> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    '합격 시 연락 수단: ${d.requestedContacts.map((e) => e.label).join(", ")}',
+                                    '${d.requestedContacts.map((e) => e.label).join(", ")} 제공 필요 (합격 시 공개)',
                                     style: const TextStyle(
                                       fontSize: 12,
                                       color: AppColors.accentOrange,
@@ -536,7 +506,7 @@ class _PostingDetailContentState extends State<PostingDetailContent> {
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              '부적절한 공고나 과도한 개인정보 요구는 우측 상단 메뉴에서 신고할 수 있습니다.',
+                              '부적절한 공고이거나 과도한 개인정보를 요구하나요? 우측 상단 메뉴에서 신고할 수 있습니다.',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.textMuted,
@@ -629,37 +599,21 @@ class _PostingDetailContentState extends State<PostingDetailContent> {
           ),
         );
       case ViewerAction.OWNER:
-        return Row(
-          children: [
-            Expanded(
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () => widget.controller
-                    .push('/postings/${d.postingId}/applicants'),
-                icon: const Icon(Icons.people_outline, size: 18),
-                label: Text('지원자 관리 · ${d.applicantCount ?? 0}명'),
+        return SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            if (d.status == PostingStatus.OPEN) ...[
-              const SizedBox(width: 10),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.danger,
-                  side: const BorderSide(color: AppColors.dangerBorder),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-                ),
-                onPressed: _closeEarly,
-                child: const Text('조기 마감'),
-              ),
-            ],
-          ],
+            onPressed: () => widget.controller
+                .push('/postings/${d.postingId}/applicants'),
+            icon: const Icon(Icons.people_outline, size: 18),
+            label: Text('내 공고 관리 · 지원자 ${d.applicantCount ?? 0}명'),
+          ),
         );
       case ViewerAction.NOT_ALLOWED:
         return SizedBox(

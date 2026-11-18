@@ -161,7 +161,42 @@ void main() {
       await tester.tap(find.text('지원하기'));
       await tester.pumpAndSettle();
       expect(find.text('항상 공유되는 정보'), findsOneWidget);
-      expect(find.text('다음'), findsOneWidget);
+      expect(find.text('다음 (추가 질문)'), findsOneWidget);
+    });
+
+    testWidgets('모집자 지원자 관리 미정 가드 및 결과 발표 기본 불합격 메시지 확인', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final controller = AppController(
+        apiClient: SkkuApiClient(forceFallbackOnly: true),
+      );
+      await controller.init(initialMemberId: 4);
+
+      await tester.pumpWidget(SkkuCrewApp(controller: controller));
+      await tester.pumpAndSettle();
+
+      // SCR-12 공고 101 지원자 관리 화면 이동 (박지호 4번 회원 소유 공고)
+      controller.push('/postings/101/applicants');
+      await tester.pumpAndSettle();
+      expect(find.text('지원 접수만 마감'), findsOneWidget);
+      final announceBtnFinder = find.ancestor(
+        of: find.textContaining('결과 발표하기 (미정'),
+        matching: find.bySubtype<FilledButton>(),
+      );
+      expect(announceBtnFinder, findsOneWidget);
+      final btn = tester.widget<FilledButton>(announceBtnFinder);
+      expect(btn.onPressed, isNull);
+
+      // SCR-14 결과 발표 화면에서 기본 불합격 안내 문구가 미리 채워져 있는지 확인
+      controller.push('/postings/101/announce');
+      await tester.pumpAndSettle();
+      expect(find.text('불합격자 안내 메시지 (선택)'), findsOneWidget);
+      expect(
+        find.text('지원해 주셔서 감사합니다. 아쉽게도 이번 모집에서는 함께하지 못하게 되었습니다.'),
+        findsOneWidget,
+      );
     });
   });
 }

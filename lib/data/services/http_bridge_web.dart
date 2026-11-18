@@ -45,3 +45,8 @@ Future<HttpBridgeResponse> sendHttpRequest({
   req.send(body);
   return completer.future;
 }
+
+Future<bool> openExternalUrl(String url) async {
+  html.window.open(url, '_blank');
+  return true;
+}

@@ -10,3 +10,5 @@ Future<HttpBridgeResponse> sendHttpRequest({
 }) {
   return Future.error(UnsupportedError('HTTP bridge not supported on this platform'));
 }
+
+Future<bool> openExternalUrl(String url) async => false;

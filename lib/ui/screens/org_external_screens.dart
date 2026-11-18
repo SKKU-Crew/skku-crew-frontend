@@ -6,6 +6,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/widgets/adaptive_shell.dart';
 import '../../core/widgets/common_widgets.dart';
 import '../../core/widgets/posting_card_widget.dart';
+import '../../data/services/http_bridge.dart';
 import '../../data/state/app_controller.dart';
 import '../../domain/models/api_models.dart';
 
@@ -103,7 +104,7 @@ class _OrgDashboardScreenState extends State<OrgDashboardScreen> {
 
         return AdaptiveShell(
           controller: widget.controller,
-          title: '단체 대시보드',
+          title: '대시보드',
           body: _loading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
@@ -117,6 +118,38 @@ class _OrgDashboardScreenState extends State<OrgDashboardScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              if (_org != null && !_org!.verified) ...[
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.warningBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: const Color(0xFFFDE68A)),
+                                  ),
+                                  child: const Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(Icons.hourglass_top,
+                                          size: 18, color: AppColors.warning),
+                                      SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          '현재 미인증 단체 상태입니다. 관리자 승인 완료 후 새 공고를 게시하고 공식 인증 배지를 받을 수 있습니다.',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors.warning,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
                               if (_org != null)
                                 SectionCard(
                                   child: Column(
@@ -420,6 +453,8 @@ class _OrgPageScreenState extends State<OrgPageScreen> {
         }
         final isPersonal =
             widget.controller.currentUser?.memberType == MemberType.PERSONAL;
+        final isOwner =
+            _org != null && widget.controller.currentUser?.memberId == _org!.orgId;
 
         return AdaptiveShell(
           controller: widget.controller,
@@ -546,10 +581,24 @@ class _OrgPageScreenState extends State<OrgPageScreen> {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            const Text(
-                              '진행 중인 모집 공고',
-                              style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w700),
+                            Row(
+                              children: [
+                                Text(
+                                  '진행 중인 모집 공고 (${_org!.openPostings.length})',
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700),
+                                ),
+                                if (isOwner) ...[
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: () =>
+                                        widget.controller.push('/postings/new'),
+                                    icon: const Icon(Icons.add, size: 17),
+                                    label: const Text('새 공고'),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 10),
                             if (_org!.openPostings.isEmpty)
@@ -559,16 +608,33 @@ class _OrgPageScreenState extends State<OrgPageScreen> {
                               for (final c in _org!.openPostings)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 10),
-                                  child: PostingCardWidget(
-                                    card: c,
-                                    onTap: () => widget.controller
-                                        .push('/postings/${c.postingId}'),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      PostingCardWidget(
+                                        card: c,
+                                        onTap: () => widget.controller
+                                            .push('/postings/${c.postingId}'),
+                                      ),
+                                      if (isOwner) ...[
+                                        const SizedBox(height: 4),
+                                        TextButton.icon(
+                                          onPressed: () =>
+                                              widget.controller.push(
+                                                  '/postings/${c.postingId}/applicants'),
+                                          icon: const Icon(
+                                              Icons.edit_outlined,
+                                              size: 16),
+                                          label: const Text('지원자 관리 · 공고 관리'),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                             const SizedBox(height: 18),
-                            const Text(
-                              '마감된 공고',
-                              style: TextStyle(
+                            Text(
+                              '마감된 공고 (${_org!.pastPostings.length})',
+                              style: const TextStyle(
                                   fontSize: 16, fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 10),
@@ -587,6 +653,15 @@ class _OrgPageScreenState extends State<OrgPageScreen> {
                                               fontWeight: FontWeight.w600),
                                         ),
                                       ),
+                                      if (isOwner)
+                                        IconButton(
+                                          tooltip: '지원자 관리',
+                                          icon: const Icon(Icons.edit_outlined,
+                                              size: 18),
+                                          onPressed: () =>
+                                              widget.controller.push(
+                                                  '/postings/${c.postingId}/applicants'),
+                                        ),
                                       StatusBadge.postingStatus(c.status),
                                     ],
                                   ),
@@ -823,12 +898,18 @@ class _ExternalActivitiesScreenState extends State<ExternalActivitiesScreen> {
                                   constraints:
                                       const BoxConstraints(maxWidth: 820),
                                   child: SectionCard(
-                                    onTap: () => showNoticeDialog(
-                                      context,
-                                      title: '공식 안내 페이지',
-                                      message:
-                                          '${item.title}\n주관: ${item.organizer}\n원문 URL: ${item.url}\n\n외부 활동은 서비스 안에서 지원하지 않고 원문 공지로 연결합니다.',
-                                    ),
+                                    onTap: () async {
+                                      final opened =
+                                          await openExternalUrl(item.url);
+                                      if (!opened && context.mounted) {
+                                        showNoticeDialog(
+                                          context,
+                                          title: '공식 안내 페이지',
+                                          message:
+                                              '${item.title}\n주관: ${item.organizer}\n원문 URL: ${item.url}\n\n외부 활동은 서비스 안에서 지원하지 않고 원문 공지로 연결합니다.',
+                                        );
+                                      }
+                                    },
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -848,6 +929,22 @@ class _ExternalActivitiesScreenState extends State<ExternalActivitiesScreen> {
                                                       item.source),
                                             ),
                                             const Spacer(),
+                                            IconButton(
+                                              tooltip: '상세 보기',
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              onPressed: () => showNoticeDialog(
+                                                context,
+                                                title: '공식 안내 페이지',
+                                                message:
+                                                    '${item.title}\n주관: ${item.organizer}\n원문 URL: ${item.url}\n\n외부 활동은 서비스 안에서 지원하지 않고 원문 공지로 연결합니다.',
+                                              ),
+                                              icon: const Icon(
+                                                Icons.info_outline,
+                                                size: 19,
+                                                color: AppColors.textMuted,
+                                              ),
+                                            ),
                                             if (widget.controller.currentUser
                                                     ?.memberType ==
                                                 MemberType.PERSONAL)

@@ -307,11 +307,133 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
     '온통청년 대외활동·청년정책': true,
   };
   final Set<int> _suspendedMemberIds = {};
+  final Map<int, String> _suspensionDurations = {};
 
   @override
   void dispose() {
     _rejectReasonCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleHideReport(AdminReportItem r) async {
+    if (r.hidden) {
+      setState(() {
+        r.hidden = false;
+        widget.controller.adminAuditLogs.insert(0, '[숨김 해제] ${r.postingTitle}');
+      });
+      AppToast.show(context, '공고 숨김이 해제되었습니다.');
+      return;
+    }
+    var selectedReason = '허위·스팸 공고';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('공고 숨김 사유 선택'),
+          content: RadioGroup<String>(
+            groupValue: selectedReason,
+            onChanged: (v) =>
+                setLocal(() => selectedReason = v ?? selectedReason),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final reason in const [
+                  '허위·스팸 공고',
+                  '과도한 개인정보 요구',
+                  '부적절한 내용',
+                ])
+                  RadioListTile<String>(
+                    value: reason,
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(reason, style: const TextStyle(fontSize: 13)),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('숨김 처리'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      r.hidden = true;
+      r.resolved = true;
+      widget.controller.adminAuditLogs.insert(
+        0,
+        '[공고 숨김 · $selectedReason] ${r.postingTitle}',
+      );
+    });
+    AppToast.show(context, '공고가 숨김 처리되었습니다.');
+  }
+
+  Future<void> _handleSuspendMember(DemoAccount m) async {
+    if (_suspendedMemberIds.contains(m.memberId)) {
+      setState(() {
+        _suspendedMemberIds.remove(m.memberId);
+        _suspensionDurations.remove(m.memberId);
+        widget.controller.adminAuditLogs.insert(0, '[정지 해제] ${m.name}');
+      });
+      AppToast.show(context, '${m.name} 계정 정지가 해제되었습니다.');
+      return;
+    }
+    var selectedDuration = '7일 정지';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text('${m.name} 계정 정지 기간'),
+          content: RadioGroup<String>(
+            groupValue: selectedDuration,
+            onChanged: (v) =>
+                setLocal(() => selectedDuration = v ?? selectedDuration),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final d in const ['7일 정지', '30일 정지', '영구 정지'])
+                  RadioListTile<String>(
+                    value: d,
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(d, style: const TextStyle(fontSize: 13)),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('정지 적용'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _suspendedMemberIds.add(m.memberId);
+      _suspensionDurations[m.memberId] = selectedDuration;
+      widget.controller.adminAuditLogs.insert(
+        0,
+        '[계정 정지 · $selectedDuration] ${m.name}',
+      );
+    });
+    AppToast.show(context, '${m.name} 계정이 $selectedDuration 처리되었습니다.');
   }
 
   @override
@@ -324,6 +446,7 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
       (Icons.analytics_outlined, '운영 현황'),
     ];
     final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= 1024 && !widget.controller.mobileFrameMode;
     final isWide = width >= 900 && !widget.controller.mobileFrameMode;
 
     return AdaptiveShell(
@@ -333,7 +456,7 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
           ? Row(
               children: [
                 Container(
-                  width: 220,
+                  width: 200,
                   color: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Column(
@@ -375,7 +498,7 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
                     ],
                   ),
                 ),
-                Expanded(child: _buildAdminContent()),
+                Expanded(child: _buildAdminContent(isDesktop: isDesktop)),
               ],
             )
           : Column(
@@ -401,20 +524,20 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
                     ],
                   ),
                 ),
-                Expanded(child: _buildAdminContent()),
+                Expanded(child: _buildAdminContent(isDesktop: false)),
               ],
             ),
     );
   }
 
-  Widget _buildAdminContent() {
+  Widget _buildAdminContent({required bool isDesktop}) {
     switch (_menuIndex) {
       case 0:
-        return _buildVerifications();
+        return _buildVerifications(isDesktop: isDesktop);
       case 1:
-        return _buildReports();
+        return _buildReports(isDesktop: isDesktop);
       case 2:
-        return _buildMemberManagement();
+        return _buildMemberManagement(isDesktop: isDesktop);
       case 3:
         return _buildExternalSources();
       default:
@@ -422,7 +545,7 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
     }
   }
 
-  Widget _buildVerifications() {
+  Widget _buildVerifications({required bool isDesktop}) {
     final list = widget.controller.adminVerifications;
     if (list.isEmpty) {
       return const EmptyStateView(
@@ -430,9 +553,10 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
         title: '심사 대기 중인 단체가 없습니다',
       );
     }
-    final sel = list[_selectedIdx.clamp(0, list.length - 1)];
+    final safeIdx = _selectedIdx.clamp(0, list.length - 1);
+    final sel = list[safeIdx];
 
-    return ListView(
+    final listWidget = ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const Text('단체 인증 신청 내역',
@@ -443,7 +567,7 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
             padding: const EdgeInsets.only(bottom: 8),
             child: SectionCard(
               borderColor:
-                  i == _selectedIdx ? AppColors.primary : AppColors.border,
+                  i == safeIdx ? AppColors.primary : AppColors.border,
               onTap: () => setState(() => _selectedIdx = i),
               child: Row(
                 children: [
@@ -477,103 +601,137 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
               ),
             ),
           ),
-        const SizedBox(height: 12),
-        SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('심사 대상: ${sel.orgName}',
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              Text('아이디: ${sel.loginId} · 이메일: ${sel.contactEmail}'),
-              const SizedBox(height: 6),
-              for (final u in sel.urls)
-                Text('인증 URL: $u',
-                    style: const TextStyle(color: AppColors.primary)),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _rejectReasonCtrl,
-                decoration: const InputDecoration(
-                  labelText: '반려 사유',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.danger,
-                        side: const BorderSide(color: AppColors.dangerBorder),
-                      ),
-                      onPressed: () {
-                        if (_rejectReasonCtrl.text.trim().isEmpty) {
-                          AppToast.show(context, '반려 사유를 입력해 주세요.',
-                              isError: true);
-                          return;
-                        }
-                        setState(() {
-                          sel.status = '반려됨';
-                          sel.rejectReason = _rejectReasonCtrl.text.trim();
-                          widget.controller.adminAuditLogs.insert(
-                            0,
-                            '[반려] ${sel.orgName} (${sel.rejectReason})',
-                          );
-                          _rejectReasonCtrl.clear();
-                        });
-                        AppToast.show(context, '반려 처리되었습니다.');
-                      },
-                      child: const Text('반려'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary),
-                      onPressed: () {
-                        setState(() {
-                          sel.status = '승인됨';
-                          widget.controller.adminAuditLogs.insert(
-                            0,
-                            '[승인] ${sel.orgName} 단체 인증 완료',
-                          );
-                        });
-                        AppToast.show(context, '${sel.orgName} 인증을 승인했습니다.');
-                      },
-                      child: const Text('승인'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+        if (!isDesktop) ...[
+          const SizedBox(height: 12),
+          _buildVerificationDetailCard(sel),
+        ],
+      ],
+    );
+
+    if (!isDesktop) return listWidget;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 5, child: listWidget),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 4,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: _buildVerificationDetailCard(sel),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildReports() {
+  Widget _buildVerificationDetailCard(AdminVerificationItem sel) {
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('심사 대상: ${sel.orgName}',
+              style:
+                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text('아이디: ${sel.loginId} · 이메일: ${sel.contactEmail}'),
+          const SizedBox(height: 6),
+          for (final u in sel.urls)
+            Text('인증 자료: $u',
+                style: const TextStyle(color: AppColors.primary)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _rejectReasonCtrl,
+            decoration: const InputDecoration(
+              labelText: '반려 사유',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: const BorderSide(color: AppColors.dangerBorder),
+                  ),
+                  onPressed: () {
+                    if (_rejectReasonCtrl.text.trim().isEmpty) {
+                      AppToast.show(context, '반려 사유를 입력해 주세요.',
+                          isError: true);
+                      return;
+                    }
+                    setState(() {
+                      sel.status = '반려됨';
+                      sel.rejectReason = _rejectReasonCtrl.text.trim();
+                      widget.controller.adminAuditLogs.insert(
+                        0,
+                        '[반려] ${sel.orgName} (${sel.rejectReason})',
+                      );
+                      _rejectReasonCtrl.clear();
+                    });
+                    AppToast.show(context, '반려 처리되었습니다.');
+                  },
+                  child: const Text('반려'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary),
+                  onPressed: () {
+                    setState(() {
+                      sel.status = '승인됨';
+                      widget.controller.adminAuditLogs.insert(
+                        0,
+                        '[승인] ${sel.orgName} 단체 인증 완료',
+                      );
+                    });
+                    AppToast.show(context, '${sel.orgName} 인증을 승인했습니다.');
+                  },
+                  child: const Text('승인'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReports({required bool isDesktop}) {
     final sorted = List<AdminReportItem>.from(widget.controller.adminReports)
       ..sort((a, b) => b.reportCount.compareTo(a.reportCount));
-    return ListView(
+    if (sorted.isEmpty) {
+      return const EmptyStateView(
+        icon: Icons.flag_outlined,
+        title: '접수된 신고가 없습니다',
+      );
+    }
+    final safeIdx = _selectedIdx.clamp(0, sorted.length - 1);
+    final sel = sorted[safeIdx];
+
+    final listWidget = ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const Text('신고 접수 내역',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
-        for (final r in sorted)
+        for (var i = 0; i < sorted.length; i++)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: SectionCard(
+              borderColor:
+                  isDesktop && i == safeIdx ? AppColors.primary : AppColors.border,
+              onTap: isDesktop ? () => setState(() => _selectedIdx = i) : null,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      if (r.reportCount >= 3)
+                      if (sorted[i].reportCount >= 3)
                         const Padding(
                           padding: EdgeInsets.only(right: 6),
                           child: StatusBadge(
@@ -583,110 +741,213 @@ class _AdminConsoleScreenState extends State<AdminConsoleScreen> {
                           ),
                         ),
                       StatusBadge(
-                        label: '${r.reason} · ${r.reportCount}건',
+                        label: '${sorted[i].reason} · ${sorted[i].reportCount}건',
                         backgroundColor: AppColors.warningBg,
                         textColor: AppColors.warning,
                       ),
                       const Spacer(),
-                      if (r.hidden)
+                      if (sorted[i].hidden)
                         const TagChip(label: '숨김 처리됨')
-                      else if (r.resolved)
+                      else if (sorted[i].resolved)
                         const TagChip(label: '문제 없음 종결'),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(r.postingTitle,
+                  Text(sorted[i].postingTitle,
                       style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Text(r.detail,
+                  Text(sorted[i].detail,
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.textSecondary)),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            r.resolved = true;
-                            r.hidden = false;
-                            widget.controller.adminAuditLogs
-                                .insert(0, '[신고 종결] ${r.postingTitle}');
-                          });
-                        },
-                        child: const Text('문제 없음'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: r.hidden
-                              ? AppColors.primary
-                              : AppColors.danger,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            r.hidden = !r.hidden;
-                            widget.controller.adminAuditLogs.insert(
-                              0,
-                              '[${r.hidden ? "공고 숨김" : "숨김 해제"}] ${r.postingTitle}',
-                            );
-                          });
-                        },
-                        child: Text(r.hidden ? '숨김 해제' : '공고 숨김'),
-                      ),
-                    ],
-                  ),
+                  if (!isDesktop) ...[
+                    const SizedBox(height: 10),
+                    _buildReportActionsRow(sorted[i]),
+                  ],
                 ],
               ),
             ),
           ),
       ],
     );
+
+    if (!isDesktop) return listWidget;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 5, child: listWidget),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 4,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: SectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('신고 공고: ${sel.postingTitle}',
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text('작성자: ${sel.recruiterName} · 누적 신고 ${sel.reportCount}건'),
+                  const SizedBox(height: 6),
+                  Text(sel.detail,
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.textSecondary)),
+                  const SizedBox(height: 14),
+                  _buildReportActionsRow(sel),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  Widget _buildMemberManagement() {
+  Widget _buildReportActionsRow(AdminReportItem r) {
+    return Row(
+      children: [
+        OutlinedButton(
+          onPressed: () {
+            setState(() {
+              r.resolved = true;
+              r.hidden = false;
+              widget.controller.adminAuditLogs
+                  .insert(0, '[신고 종결] ${r.postingTitle}');
+            });
+            AppToast.show(context, '신고가 문제 없음으로 종결되었습니다.');
+          },
+          child: const Text('문제 없음'),
+        ),
+        const SizedBox(width: 8),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: r.hidden ? AppColors.primary : AppColors.danger,
+          ),
+          onPressed: () => _handleHideReport(r),
+          child: Text(r.hidden ? '숨김 해제' : '공고 숨김'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMemberManagement({required bool isDesktop}) {
     final accounts = widget.controller.demoAccounts.take(11).toList();
-    return ListView(
+    if (accounts.isEmpty) {
+      return const EmptyStateView(
+        icon: Icons.manage_accounts_outlined,
+        title: '관리할 회원이 없습니다',
+      );
+    }
+    final safeIdx = _selectedIdx.clamp(0, accounts.length - 1);
+    final sel = accounts[safeIdx];
+
+    final listWidget = ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const Text('전체 회원 관리',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
-        for (final m in accounts)
+        for (var i = 0; i < accounts.length; i++)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: SectionCard(
+              borderColor:
+                  isDesktop && i == safeIdx ? AppColors.primary : AppColors.border,
+              onTap: isDesktop ? () => setState(() => _selectedIdx = i) : null,
               child: Row(
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${m.name} · ${m.memberType.label}',
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w700)),
-                        Text(m.description ?? '',
+                        Row(
+                          children: [
+                            Text(
+                              '${accounts[i].name} · ${accounts[i].memberType.label}',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            if (_suspendedMemberIds
+                                .contains(accounts[i].memberId)) ...[
+                              const SizedBox(width: 6),
+                              StatusBadge(
+                                label: _suspensionDurations[
+                                        accounts[i].memberId] ??
+                                    '정지됨',
+                                backgroundColor: AppColors.dangerBg,
+                                textColor: AppColors.danger,
+                              ),
+                            ],
+                          ],
+                        ),
+                        Text(accounts[i].description ?? '',
                             style: const TextStyle(
                                 fontSize: 12, color: AppColors.textMuted)),
                       ],
                     ),
                   ),
-                  OutlinedButton(
-                    onPressed: () {
-                      setState(() {
-                        if (_suspendedMemberIds.contains(m.memberId)) {
-                          _suspendedMemberIds.remove(m.memberId);
-                        } else {
-                          _suspendedMemberIds.add(m.memberId);
-                        }
-                      });
-                    },
-                    child: Text(_suspendedMemberIds.contains(m.memberId)
-                        ? '정지 해제'
-                        : '계정 정지'),
+                  if (!isDesktop)
+                    OutlinedButton(
+                      onPressed: () => _handleSuspendMember(accounts[i]),
+                      child: Text(
+                        _suspendedMemberIds.contains(accounts[i].memberId)
+                            ? '정지 해제'
+                            : '계정 정지',
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+
+    if (!isDesktop) return listWidget;
+    final suspended = _suspendedMemberIds.contains(sel.memberId);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 5, child: listWidget),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 4,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: SectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${sel.name} · ${sel.memberType.label}',
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(sel.description ?? '설명 없음',
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.textSecondary)),
+                  const SizedBox(height: 8),
+                  Text(
+                    suspended
+                        ? '현재 상태: ${_suspensionDurations[sel.memberId] ?? "정지됨"}'
+                        : '현재 상태: 정상 활동',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: suspended ? AppColors.danger : AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => _handleSuspendMember(sel),
+                      child: Text(suspended ? '정지 해제' : '계정 정지'),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
+        ),
       ],
     );
   }
@@ -782,7 +1043,7 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
     final c = widget.controller;
     return AdaptiveShell(
       controller: c,
-      title: 'AI 연결 · 설정',
+      title: 'AI 연결',
       leadingBack: true,
       showBottomNav: false,
       body: Center(
@@ -1024,7 +1285,7 @@ class _AiConsentScreenState extends State<AiConsentScreen> {
     final user = widget.controller.currentUser;
     return AdaptiveShell(
       controller: widget.controller,
-      title: 'AI 연결 권한 동의',
+      title: 'AI 연결',
       leadingBack: true,
       showBottomNav: false,
       body: Center(
@@ -1075,7 +1336,7 @@ class _AiConsentScreenState extends State<AiConsentScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const Text('기본 제공 권한',
+                  const Text('읽기 권한 (기본)',
                       style:
                           TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
@@ -1094,7 +1355,7 @@ class _AiConsentScreenState extends State<AiConsentScreen> {
                     subtitle: Text('내 프로필과 지원 현황·결과'),
                   ),
                   const Divider(height: 20),
-                  const Text('추가 허용 권한',
+                  const Text('쓰기 권한 (선택)',
                       style:
                           TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                   SwitchListTile(

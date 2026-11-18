@@ -83,7 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('내 프로필 미리보기'),
+        title: const Text('모집자에게 보이는 화면'),
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(
@@ -429,7 +429,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          '학교 이메일: ${p.schoolEmail ?? "-"} · 카카오톡 ID: ${p.contacts.kakaoId ?? "미등록"} · 전화번호: ${p.contacts.phone ?? "미등록"}',
+                          '학교 이메일: ${p.schoolEmail ?? "-"} · 카카오톡 ID: ${p.contacts.kakaoId ?? "미등록"} · 전화번호: ${p.contacts.phone ?? "미등록"} · 개인 이메일: ${p.contacts.personalEmail ?? "미등록"}',
                           style: const TextStyle(
                               fontSize: 12, color: AppColors.textSecondary),
                         ),
@@ -455,7 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          '참여 완료 활동',
+                          'SKKU Crew 활동 이력',
                           style: TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w700),
                         ),
@@ -625,16 +625,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     });
   }
 
-  Future<void> _addExperienceDialog() async {
-    final titleCtrl = TextEditingController();
-    final roleCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    var type = ExperienceType.PROJECT;
+  Future<void> _addExperienceDialog({
+    ExperienceItem? initial,
+    int? editIndex,
+  }) async {
+    final titleCtrl = TextEditingController(text: initial?.title ?? '');
+    final roleCtrl = TextEditingController(text: initial?.role ?? '');
+    final descCtrl = TextEditingController(text: initial?.description ?? '');
+    var type = initial?.type ?? ExperienceType.PROJECT;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('경험 추가'),
+          title: Text(initial == null ? '경험 추가' : '경험 수정'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -679,28 +682,101 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('추가'),
+              child: Text(initial == null ? '추가' : '저장'),
             ),
           ],
         ),
       ),
     );
     if (ok == true && titleCtrl.text.trim().isNotEmpty) {
+      final item = ExperienceItem(
+        id: initial?.id,
+        type: type,
+        title: titleCtrl.text.trim(),
+        role: roleCtrl.text.trim(),
+        startDate: initial?.startDate ?? '2026-09-01',
+        endDate: initial?.endDate,
+        description: descCtrl.text.trim(),
+      );
       setState(() {
-        _experiences.add(
-          ExperienceItem(
-            type: type,
-            title: titleCtrl.text.trim(),
-            role: roleCtrl.text.trim(),
-            startDate: '2026-09-01',
-            description: descCtrl.text.trim(),
-          ),
-        );
+        if (editIndex != null &&
+            editIndex >= 0 &&
+            editIndex < _experiences.length) {
+          _experiences[editIndex] = item;
+        } else {
+          _experiences.add(item);
+        }
       });
     }
     titleCtrl.dispose();
     roleCtrl.dispose();
     descCtrl.dispose();
+  }
+
+  Future<void> _addFileDialog() async {
+    final nameCtrl = TextEditingController();
+    final urlCtrl = TextEditingController(
+      text: 'https://files.skkucrew.example/portfolio_${_files.length + 1}.pdf',
+    );
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('포트폴리오 PDF 추가'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'PDF 파일명 *',
+                hintText: '예: 김성균_포트폴리오.pdf',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: urlCtrl,
+              decoration: const InputDecoration(
+                labelText: '파일 URL 또는 경로 *',
+                hintText: 'https://...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('추가'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      var name = nameCtrl.text.trim();
+      final url = urlCtrl.text.trim();
+      if (name.isEmpty) {
+        if (mounted) AppToast.show(context, '파일명을 입력해 주세요.', isError: true);
+      } else {
+        if (!name.toLowerCase().endsWith('.pdf')) {
+          name = '$name.pdf';
+        }
+        final urlErr = AppValidators.validateUrl(url, required: true);
+        if (urlErr != null) {
+          if (mounted) AppToast.show(context, urlErr, isError: true);
+        } else {
+          setState(() {
+            _files.add(PortfolioFileItem(fileName: name, url: url));
+          });
+        }
+      }
+    }
+    nameCtrl.dispose();
+    urlCtrl.dispose();
   }
 
   Future<void> _addLinkDialog() async {
@@ -871,6 +947,65 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                         setState(() => _majorPrimary = v);
                                       }
                                     },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '복수·부전공 (선택, ${_majorsSecondary.length}/2)',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      if (_majorsSecondary.isNotEmpty) ...[
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 6,
+                                          children: [
+                                            for (final m in _majorsSecondary)
+                                              InputChip(
+                                                label: Text(m,
+                                                    style: const TextStyle(
+                                                        fontSize: 12)),
+                                                onDeleted: () => setState(() =>
+                                                    _majorsSecondary.remove(m)),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
+                                      if (_majorsSecondary.length < 2)
+                                        DropdownButtonFormField<String>(
+                                          key: ValueKey(
+                                              'sec_${_majorPrimary}_${_majorsSecondary.join(",")}'),
+                                          decoration: const InputDecoration(
+                                            labelText: '복수·부전공 추가',
+                                            border: OutlineInputBorder(),
+                                            isDense: true,
+                                          ),
+                                          items: [
+                                            for (final d in DomainConstants
+                                                .skkuDepartments)
+                                              if (d != _majorPrimary &&
+                                                  !_majorsSecondary.contains(d))
+                                                DropdownMenuItem(
+                                                    value: d, child: Text(d)),
+                                          ],
+                                          onChanged: (v) {
+                                            if (v != null &&
+                                                _majorsSecondary.length < 2 &&
+                                                !_majorsSecondary.contains(v)) {
+                                              setState(
+                                                  () => _majorsSecondary.add(v));
+                                            }
+                                          },
+                                        ),
+                                    ],
                                   ),
                                   const SizedBox(height: 12),
                                   DropdownButtonFormField<AcademicStatus>(
@@ -1044,11 +1179,27 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                       title: Text(_experiences[i].title),
                                       subtitle: Text(
                                           '${_experiences[i].type.label} · ${_experiences[i].role ?? ""}'),
-                                      trailing: IconButton(
-                                        icon: const Icon(Icons.delete_outline,
-                                            size: 18),
-                                        onPressed: () => setState(
-                                            () => _experiences.removeAt(i)),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(
+                                                Icons.edit_outlined,
+                                                size: 18),
+                                            onPressed: () =>
+                                                _addExperienceDialog(
+                                              initial: _experiences[i],
+                                              editIndex: i,
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
+                                                Icons.delete_outline,
+                                                size: 18),
+                                            onPressed: () => setState(
+                                                () => _experiences.removeAt(i)),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                 ],
@@ -1090,6 +1241,46 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                             size: 18),
                                         onPressed: () =>
                                             setState(() => _links.removeAt(i)),
+                                      ),
+                                    ),
+                                  const Divider(height: 16),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        '포트폴리오 PDF (${_files.length}/3, 각 10MB 이하)',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      TextButton.icon(
+                                        onPressed: _files.length < 3
+                                            ? _addFileDialog
+                                            : null,
+                                        icon: const Icon(
+                                            Icons.upload_file_outlined,
+                                            size: 18),
+                                        label: const Text('PDF 추가'),
+                                      ),
+                                    ],
+                                  ),
+                                  for (var i = 0; i < _files.length; i++)
+                                    ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      dense: true,
+                                      leading: const Icon(
+                                          Icons.picture_as_pdf_outlined,
+                                          size: 18,
+                                          color: AppColors.danger),
+                                      title: Text(_files[i].fileName),
+                                      subtitle: Text(_files[i].url),
+                                      trailing: IconButton(
+                                        icon: const Icon(Icons.delete_outline,
+                                            size: 18),
+                                        onPressed: () =>
+                                            setState(() => _files.removeAt(i)),
                                       ),
                                     ),
                                   const SizedBox(height: 8),

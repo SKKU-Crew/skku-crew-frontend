@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/state/app_controller.dart';
 import '../constants/app_colors.dart';
 import '../constants/codes.dart';
+import 'common_widgets.dart';
 
 /// SRS 3.1.1(1)~(2) 반응형 내비게이션 쉘.
 /// - 모바일(360~767px) · 태블릿(768~1023px): 상단 앱바 + 하단 탭 바
@@ -61,29 +62,17 @@ class AdaptiveShell extends StatelessWidget {
                 ],
                 InkWell(
                   onTap: () => controller.go(controller.defaultHomePath),
-                  child: const Row(
-                    children: [
-                      Text(
-                        'SKKU Crew',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      Text(
-                        '.',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.accentOrange,
-                        ),
-                      ),
-                    ],
+                  child: const Text(
+                    'SKKU Crew',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primary,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 28),
+                const SizedBox(width: 24),
                 for (var i = 0; i < navItems.length; i++)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
@@ -121,12 +110,64 @@ class AdaptiveShell extends StatelessWidget {
                     ),
                   ),
                 const Spacer(),
+                SizedBox(
+                  width: 196,
+                  height: 36,
+                  child: TextField(
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (v) {
+                      final trimmed = v.trim();
+                      if (trimmed.isNotEmpty && trimmed.length < 2) {
+                        AppToast.show(
+                          context,
+                          '검색어는 2자 이상 입력해 주세요.',
+                          isError: true,
+                        );
+                        return;
+                      }
+                      controller.openExploreWithKeyword(v);
+                    },
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: '공고·태그 검색',
+                      hintStyle: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textMuted,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        size: 18,
+                        color: AppColors.textMuted,
+                      ),
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 34,
+                        minHeight: 34,
+                      ),
+                      isDense: true,
+                      filled: true,
+                      fillColor: AppColors.surfaceMuted,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: const BorderSide(color: AppColors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: const BorderSide(color: AppColors.border),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 ...actions,
                 _NotificationBellButton(controller: controller),
                 const SizedBox(width: 4),
                 IconButton(
-                  tooltip: 'AI 연결 · 설정',
-                  icon: const Icon(Icons.smart_toy_outlined,
+                  tooltip: 'AI 연결',
+                  icon: const Icon(Icons.settings_outlined,
                       color: AppColors.textSecondary),
                   onPressed: () => controller.push('/settings/ai'),
                 ),
@@ -218,7 +259,7 @@ class AdaptiveShell extends StatelessWidget {
           if (user != null) ...[
             _NotificationBellButton(controller: controller),
             IconButton(
-              tooltip: 'AI 연결 · 설정',
+              tooltip: 'AI 연결',
               icon: const Icon(
                 Icons.settings_outlined,
                 color: AppColors.textSecondary,
@@ -271,6 +312,7 @@ class AdaptiveShell extends StatelessWidget {
     if (isOrg) {
       return [
         const _NavItem('대시보드', Icons.dashboard_outlined, '/org/dashboard'),
+        const _NavItem('공고 관리', Icons.assignment_outlined, '/me/applications'),
         const _NavItem('탐색', Icons.search, '/explore'),
         const _NavItem('외부활동', Icons.public, '/external'),
         _NavItem('조직 페이지', Icons.apartment_outlined, '/orgs/${userId ?? 6}'),

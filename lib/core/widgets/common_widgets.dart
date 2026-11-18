@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
@@ -8,39 +10,127 @@ import '../utils/formatters.dart';
 class AppToast {
   const AppToast._();
 
+  static OverlayEntry? _activeEntry;
+  static Timer? _activeTimer;
+
   static void show(
     BuildContext context,
     String message, {
     bool isError = false,
   }) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) return;
-    messenger.clearSnackBars();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: Colors.white,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+    _activeTimer?.cancel();
+    _activeTimer = null;
+    try {
+      _activeEntry?.remove();
+    } catch (_) {}
+    _activeEntry = null;
+
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) {
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      if (messenger == null) return;
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                isError ? Icons.error_outline : Icons.check_circle_outline,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: isError ? AppColors.danger : AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(milliseconds: 1800),
+        ),
+      );
+      return;
+    }
+
+    final topOffset = MediaQuery.paddingOf(context).top + 16;
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => Positioned(
+        top: topOffset,
+        left: 16,
+        right: 16,
+        child: IgnorePointer(
+          ignoring: true,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Material(
+              color: Colors.transparent,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isError ? AppColors.danger : AppColors.primary,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x26000000),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isError
+                            ? Icons.error_outline
+                            : Icons.check_circle_outline,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: isError ? AppColors.danger : AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 3),
       ),
     );
+
+    _activeEntry = entry;
+    overlay.insert(entry);
+    _activeTimer = Timer(const Duration(milliseconds: 1800), () {
+      if (_activeEntry == entry) {
+        try {
+          entry.remove();
+        } catch (_) {}
+        _activeEntry = null;
+      }
+      _activeTimer = null;
+    });
   }
 }
 

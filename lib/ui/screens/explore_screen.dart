@@ -43,6 +43,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
       _categories.addAll(widget.controller.pendingExploreCategories);
       widget.controller.pendingExploreCategories = const [];
     }
+    if (widget.controller.pendingExploreKeyword != null) {
+      _searchCtrl.text = widget.controller.pendingExploreKeyword!;
+      widget.controller.pendingExploreKeyword = null;
+    }
     _search(resetPage: true);
   }
 
@@ -264,7 +268,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     value: _includeClosed,
                     onChanged: (v) => setLocal(() => _includeClosed = v),
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('마감·발표 완료 공고 포함',
+                    title: const Text('마감 포함',
                         style: TextStyle(fontSize: 14)),
                   ),
                   const SizedBox(height: 14),
@@ -299,7 +303,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
-        if (_lastVersion != widget.controller.dataVersion) {
+        if (widget.controller.pendingExploreKeyword != null) {
+          final kw = widget.controller.pendingExploreKeyword!;
+          widget.controller.pendingExploreKeyword = null;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _searchCtrl.text = kw;
+            _search(resetPage: true);
+          });
+        } else if (_lastVersion != widget.controller.dataVersion) {
           WidgetsBinding.instance
               .addPostFrameCallback((_) => _search(resetPage: true));
         }
@@ -437,7 +449,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 },
                               ),
                             ),
-                          for (final f in [Field.DATA, Field.DEV, Field.AI])
+                          for (final f in Field.values)
                             Padding(
                               padding: const EdgeInsets.only(right: 6),
                               child: FilterChip(

@@ -140,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               const SizedBox(height: 8),
                               SizedBox(
-                                height: 174,
+                                height: 196,
                                 child: (_home?.recommended.isEmpty ?? true)
                                     ? const EmptyStateView(
                                         icon: Icons.explore_outlined,

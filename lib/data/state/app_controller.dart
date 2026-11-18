@@ -39,6 +39,7 @@ class AppController extends ChangeNotifier {
 
   // 화면 간 파라미터 전달용 상태
   List<Category> pendingExploreCategories = const [];
+  String? pendingExploreKeyword;
   Decision? pendingApplicantFilter;
   int? highlightApplicationId;
   int initialMyActivitiesTab = 0;
@@ -283,6 +284,16 @@ class AppController extends ChangeNotifier {
   }
 
   // ---------------- 선언형 URL 라우팅 ----------------
+
+  void openExploreWithKeyword(String keyword) {
+    final trimmed = keyword.trim();
+    if (trimmed.isNotEmpty && trimmed.length < 2) {
+      return;
+    }
+    pendingExploreKeyword = trimmed;
+    _dataVersion++;
+    go('/explore');
+  }
 
   void go(String path) {
     _history

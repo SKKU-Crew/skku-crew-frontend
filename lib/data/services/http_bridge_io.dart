@@ -27,3 +27,5 @@ Future<HttpBridgeResponse> sendHttpRequest({
     client.close(force: true);
   }
 }
+
+Future<bool> openExternalUrl(String url) async => false;

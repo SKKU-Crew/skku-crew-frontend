@@ -172,7 +172,7 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
                             const SizedBox(height: 6),
                             for (final dc in detail.result!.disclosedContacts!)
                               Text(
-                                '전달된 내 연락처 · ${dc.type.label}: ${dc.value}',
+                                '전달된 내 연락처 · ${dc.type.label}: ${dc.value}${dc.disclosedAt != null ? " (${AppFormatters.formatKstDateTime(dc.disclosedAt)} 공개)" : ""}',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,
@@ -265,9 +265,12 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
           WidgetsBinding.instance.addPostFrameCallback((_) => _load());
         }
 
+        final isOrg =
+            widget.controller.currentUser?.memberType == MemberType.ORGANIZATION;
+
         return AdaptiveShell(
           controller: widget.controller,
-          title: '내 활동',
+          title: isOrg ? '공고 관리' : '내 활동',
           body: !widget.controller.isLoggedIn
               ? EmptyStateView(
                   icon: Icons.lock_outline,
@@ -275,36 +278,40 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
                   actionLabel: '로그인하기',
                   onAction: () => widget.controller.go('/login'),
                 )
-              : Column(
-                  children: [
-                    Container(
-                      color: AppColors.surface,
-                      child: TabBar(
-                        controller: _tabCtrl,
-                        labelColor: AppColors.primary,
-                        unselectedLabelColor: AppColors.textMuted,
-                        indicatorColor: AppColors.primary,
-                        tabs: const [
-                          Tab(text: '지원 현황'),
-                          Tab(text: '내 공고'),
-                          Tab(text: '관심'),
-                        ],
-                      ),
+              : isOrg
+                  ? (_loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildMyPostingsTab())
+                  : Column(
+                      children: [
+                        Container(
+                          color: AppColors.surface,
+                          child: TabBar(
+                            controller: _tabCtrl,
+                            labelColor: AppColors.primary,
+                            unselectedLabelColor: AppColors.textMuted,
+                            indicatorColor: AppColors.primary,
+                            tabs: const [
+                              Tab(text: '지원 현황'),
+                              Tab(text: '내 공고'),
+                              Tab(text: '관심'),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: _loading
+                              ? const Center(child: CircularProgressIndicator())
+                              : TabBarView(
+                                  controller: _tabCtrl,
+                                  children: [
+                                    _buildApplicationsTab(),
+                                    _buildMyPostingsTab(),
+                                    _buildBookmarksTab(),
+                                  ],
+                                ),
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: _loading
-                          ? const Center(child: CircularProgressIndicator())
-                          : TabBarView(
-                              controller: _tabCtrl,
-                              children: [
-                                _buildApplicationsTab(),
-                                _buildMyPostingsTab(),
-                                _buildBookmarksTab(),
-                              ],
-                            ),
-                    ),
-                  ],
-                ),
         );
       },
     );
