@@ -1,0 +1,21 @@
+name: skku_crew
+description: SKKU Crew - 대학생 커리어 네트워킹 및 활동 매칭 플랫폼 (Flutter Web/PWA)
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

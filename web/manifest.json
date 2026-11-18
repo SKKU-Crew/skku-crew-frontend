@@ -1,0 +1,12 @@
+{
+  "name": "SKKU Crew",
+  "short_name": "SKKU Crew",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F8F9FA",
+  "theme_color": "#14532D",
+  "description": "성균관대학교 구성원을 위한 교내·외 커리어 네트워킹 및 활동 매칭 플랫폼",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "icons": []
+}
